@@ -1,0 +1,10 @@
+---
+title: "Blogg"
+listing:
+  contents: posts
+  sort: "date desc"
+  sort-ui: false
+  filter-ui: false
+page-layout: full
+title-block-banner: true
+---

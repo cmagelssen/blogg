@@ -1,0 +1,17 @@
+project:
+  type: website
+
+website:
+  title: "Christian Magelssen"
+  navbar:
+    background: white
+    right:
+      - text: "Blogg"
+        href: index.qmd
+      - text: "Om meg"
+        href: about.qmd
+
+format:
+  html:
+    theme: litera
+    css: styles.css

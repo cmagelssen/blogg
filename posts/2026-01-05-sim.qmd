@@ -1,0 +1,366 @@
+---
+title: "Når 'ingen effekt' egentlig betyr 'vi har ikke peiling'"
+image: 1.png
+format:
+  html:
+    embed-resources: true
+---
+
+```{r}
+#| echo: false
+#| warning: false
+library(patchwork)
+library(tidyverse)
+library(MASS)
+
+set.seed(123)
+
+colorPalette <- c("#DD1E88FF", "#1C8EB3FF", "#8FC344FF") 
+theme_sim <- ggplot2::theme_minimal() %+replace% ggplot2::theme(
+  axis.text.y = element_text(size = 12),
+  axis.text.x = element_text(size = 12),
+  axis.title = element_text(size = 14),
+  strip.text = element_text(size = 11, color = "black"),
+  strip.background = element_blank(),
+  plot.title = element_text(size = 16),
+  panel.grid = element_blank(),
+  panel.border = element_blank(),
+  axis.line.x = element_line(),
+  axis.line.y = element_line(),
+  legend.position = "bottom",
+  legend.key.height = unit(0.2, 'cm'),
+  legend.key.width = unit(0.4, 'cm'),
+  legend.title = element_text(size=14),
+  legend.text = element_text(size=10),
+  legend.box.background = element_blank(),
+  legend.key = element_rect(fill = NA, color = NA))
+
+
+
+
+```
+
+De siste årene har vi sett en rekke forskningsstudier med konklusjoner som "ingen effekt av X på Y" eller "A gir samme effekt som B på Y". Et ferskt eksempel er Norges idrettshøgskole, som slår fast at "leik gir samme effekt som intervall". Slike konklusjoner kan virke underlige og står ofte i klar kontrast til treneres erfaringer. Men det er ikke poenget her. Poenget er at slike konklusjoner ikke er logisk gyldige uten et eksperimentelt design som faktisk tillater dem, noe de færreste studier har. Likevel presenteres resultatene ofte som skråsikre. Det er problematisk, ikke bare fordi konklusjonene kan være metodisk feil, men fordi de i praksis kan føre til at vi slutter med tiltak som faktisk har effekt.
+
+I dette blogginnlegget viser jeg hvorfor vi ikke kan trekke slike konklusjoner ved hjelp av Monte Carlo-simuleringer. I en Monte Carlo-simulering bestemmer vi oss som forskere på forhånd for at en effekt faktisk eksisterer i populasjonen. Spørsmålet vi deretter stiller, er ikke om effekten finnes, men hvor ofte en vanlig statistisk analyse klarer å påvise den. For å undersøke dette går vi frem på følgende måte: Vi lager kunstige datasett som ligner på det vi realistisk kunne observert i en faktisk studie. Deretter analyserer vi hvert datasett på samme måte som i ekte forskning, og registrerer om testen påviser effekten eller ikke. Ved å gjenta denne prosessen mange ganger kan vi telle hvor ofte vi treffer, og hvor ofte vi bommer, selv om vi vet at effekten faktisk finnes. Denne fremgangsmåten gjør det mulig å skille tydelig mellom to spørsmål som ofte blandes sammen i forskning: om en effekt eksisterer, og om vi har tilstrekkelig statistisk styrke til å oppdage den.
+
+For å gi leseren et god innsikt og overblikk går jeg frem i korte, enkle steg. Først beskriver jeg et realistisk studieoppsett fra styrketrening og spesifiserer hvilken effekt det faktisk er interessant å studere. Deretter simulerer jeg én enkelt studie for å vise hvordan dataene kan se ut i praksis. Jeg bygger så en statistisk modell for å teste om effekten kan påvises. Poenget er imidlertid ikke resultatet fra denne ene testen i denne ene studien. Hovedpoenget kommer først når vi gjentar den samme studien mange ganger. Ved å simulere identiske studier under de samme forutsetningene, men med nye datasett hver gang, kan vi undersøke hvor ofte analysen faktisk klarer å påvise effekten. Til slutt varierer jeg antall deltakere per gruppe for å vise hvordan utvalgsstørrelse alene påvirker sannsynligheten for å trekke riktige konklusjoner, og hvorfor dette er et grunnleggende problem i store deler av idrettsforskningen.
+
+Det er verdt å merke seg at dette er den lange veien til poenget. I utgangspunktet burde det være mulig å ta en langt kortere vei. Den korte forklaringen er at den klassiske nullhypotesetesten ikke tester om to grupper er like. **Den tester sannsynligheten for å observere dataene gitt at nullhypotesen om ingen effekt er sann. Dersom observasjonene avviker tilstrekkelig fra det som forventes under nullhypotesen, sier vi at resultatet er statistisk signifikant. Men dersom resultatet ikke er statistisk signifikant, betyr det ikke at gruppene er like** – selv om mange forskere ser ut til å tolke det slik.
+
+Jeg har likevel valgt å gå den lange veien, fordi den gjør det mulig å se hvor ofte vi faktisk trekker feil konklusjon, selv når vi vet at effekten eksisterer.
+
+## Et tenkt studieoppsett
+
+Anta at du jobber som forsker og ønsker å studere effekten av et nytt styrketreningsprogram. Du har grunn til å tro at dette programmet vil føre til større styrkeøkning enn tradisjonell styrketrening, fordi det i større grad utnytter sentrale cellulære mekanismer for muskelhypertrofi. Akkurat hvilke mekanismer dette er, er ikke viktig for eksempelet.
+
+For å teste denne hypotesen sammenligner du det nye treningsprogrammet med en tradisjonell styrketreningsmetode. Studien gjennomføres over en periode på fire uker hos moderat godt trente utøvere. For enkelhets skyld velger du 1RM i benkpress som utfallsmål. Du forventer at begge gruppene vil forbedre styrken sin i løpet av perioden. Det avgjørende spørsmålet er derfor ikke *om* styrken øker, men *hvor mye mer* den øker i gruppen som følger det nye treningsprogrammet. Men hvor mye større forbedring er det rimelig å forvente av den nye styrketreningsmetoden? Og ikke minst, hvilken effekt er det faktisk interessant å studere, gitt at metoden potensielt krever en betydelig atferdsendring, for eksempel hardere trening eller lengre økter? Dette innebærer nødvendigvis en avveiing.
+
+Dersom forskningsspørsmålet faktisk er å teste en hypotese, er dette spørsmål forskeren må ta stilling til før studien gjennomføres. Likevel er det et punkt mange forskere ikke tar tilstrekkelig alvorlig. I idrettsforskning hører man for eksempel ofte forskere si at de er interessert i «alle effekter». Begrunnelsen er gjerne at hvert sekund eller hvert kilo kan være avgjørende i idrett. Det gir mening i et idrettsperspektiv, men er meningsløst i et forskningsperspektiv. Å fange opp alle effekter krever enorme – i praksis tilnærmet uendelige – datamengder. Det er også vanlig å lese at forskere implisitt antar store effekter av tiltaket, fordi dette gjør det enklere å forsvare små utvalg. Når slike antakelser ikke eksplisitt diskuteres og begrunnes, kan det føre til alvorlige metodiske feil.
+
+For enkelhets skyld velger du her en ekstra økning på 5 kg i 1RM benkpress som den minste effekten du er interessert i. Begrunnelsen er praktisk: En slik forbedring ville vært stor nok til at du eller andre faktisk hadde vært villig til å endre treningsopplegg. Større effekter, som 10 eller 20 kg over kort tid, fremstår derimot som urealistiske. Du setter derfor 5 kg som den minste effekten av interesse – på engelsk omtalt som Smallest Effect Size of Interest} (SESOI). Dette gjør vi med følgende kode i R:
+
+```{r}
+sesoi <- 5 # smallest effect size of interest
+```
+
+Når den minste effektstørrelsen av interesse nå er spesifisert, melder neste spørsmål seg: hvor mange deltakere trenger vi for faktisk å kunne studere denne effekten på en god måte? I et frekventistisk rammeverk handler dette om sannsynlighet for deteksjon: Hvor ofte klarer vi å påvise en effekt, gitt at en sann forskjell på 5 kg i populasjonen? I praksis opererer man ofte med et mål om rundt 0,8 sannsynlighet for å detektere en slik effekt, noe som innebærer at man aksepterer å bomme i omtrent 20 % av tilfellene.
+
+For å undersøke dette ved hjelp av simulering, må vi gjøre noen eksplisitte antakelser om hvordan dataene faktisk blir til. Disse antakelsene er avgjørende for den statistiske styrken til testen, og bestemmer i stor grad hvor ofte vi vil klare å påvise en effekt. Antakelsene som ligger til grunn for simuleringen er oppsummert i tabellen under.
+
+```{r}
+#| echo: false
+#| label: tab-antakelser
+#| tbl-cap: Antakelser som ligger til grunn for simuleringen
+
+
+antakelser <- tibble(
+  Antakelse = c(
+    "Minste effekt av interesse (SESOI)",
+    "Antall deltakere per gruppe",
+    "Standardavvik (baseline og post)",
+    "Korrelasjon mellom baseline og post",
+    "Gjennomsnittlig baseline-styrke",
+    "Signifikansnivå (α)"
+  ),
+  Verdi = c(
+    "5 kg",
+    "10",
+    "10 kg",
+    "0,6",
+    "70 kg",
+    "0,05"
+  ),
+  Begrunnelse = c(
+    "Minste forbedring som er praktisk relevant",
+    "Typisk utvalgsstørrelse i idrettsforskning",
+    "Realistisk variasjon i 1RM benkpress",
+    "Moderat–høy korrelasjon, gunstig for testing med Ancova",
+    "Moderat godt trente utøvere",
+    "Standard terskel i frekventistisk testing"
+  )
+)
+
+knitr::kable(antakelser)
+
+```
+
+Disse antakelsene definerer det som på engelsk kalles \textit{data-generating process}, altså en beskrivelse av hvordan dataene i studien blir til. Med andre ord sier de noe om hvilke typer datasett vi kan forvente å observere, dersom studien faktisk gjennomføres under disse forutsetningene. Dersom vi endrer på disse antakelsene, endrer vi også hvilke datasett som kan bli trukket. Mer variasjon i dataene gir mer støy, færre deltakere gir mindre informasjon, og lavere korrelasjon mellom målet før og etter intervensjonen gjør analysen mindre presis. Antakelsene i tabellen over er derfor avgjørende for hvor ofte vi vil klare å påvise en effekt.
+
+Med disse forutsetningene på plass, kan vi implementere dem direkte i R. Som et første steg genererer vi ett enkelt datasett, kun for å illustrere hvordan dataene kan se ut i praksis. Poenget er ikke denne ene simuleringen, men at den gir et konkret bilde av hva vi senere skal gjenta mange ganger.
+
+```{r}
+
+n <- 10 # 10 deltakere per gruppe
+rho <- 0.6 # Korrelasjonen mellom baseline og post. Høyere korrelasjon gjør at pre håndterer mer variasjon
+sigma_pre <- 10 # SD for baseline
+sigma_post <- 10 # SD for post
+group_difference <- sesoi # vår smallest effect size of interest, som vi definerte tidligere. I en Ancova blir dette til en intercept- forskjell
+
+
+# Jeg lager gruppene a og b, hvor a skal bli tradisjonell gruppe og b skal bli den nye styrketreningsgruppen
+group <- rep(c("a", "b"), each = n)
+
+# Jeg simulerer fra en multivariate normal med 70 som gjennomsnitt for begge gruppene på baseline
+y <- MASS::mvrnorm(
+  n = n*2,
+  mu = c(70, 70), # I ANCOVA er forventningen at baseline-forskjellen null 
+  Sigma = matrix(
+    c(sigma_pre^2,
+      rho*sigma_pre*sigma_post,
+      rho*sigma_pre*sigma_post,
+      sigma_post^2),
+    nrow = 2)
+)
+
+d <- tibble(
+  group = as_factor(group),
+  baseline =  round(y[,1],0),
+  post = round(y[,2] + 10 + ifelse(group == "b", group_difference, 0),0) # Merk at group_difference er vår sesoi
+)
+
+```
+
+For å gi et konkret bilde av hvordan dataene kan se ut i praksis, viser jeg her ett eksempel på et generert datasett. Tabellen under viser én simulert studie, gitt antakelsene i tabellen over. Det er viktig å understreke at dette kun er ett mulig utfall. Poenget er ikke verdiene i denne tabellen i seg selv, men at de gir en intuitiv forståelse av hvordan datastrukturen ser ut før vi gjentar studien mange ganger.
+
+```{r}
+#| echo: false
+knitr::kable(d)
+```
+
+Det er også nyttig å visualisere disse dataene. Figuren under viser de simulerte verdiene ved baseline og etter intervensjonen for de to gruppene.
+
+```{r}
+#| echo: false
+#| fig-cap: "Fordeling av 1RM benkpress ved baseline og posttest i de to gruppene. Simulert data"
+d_plot <- pivot_longer(d, cols = c("baseline", "post"), names_to = "time", values_to = "kg")
+
+ggplot(d_plot, aes(x=time, y=kg, color=group)) +
+  ggbeeswarm::geom_quasirandom(width=0.05, dodge.width = 0.5, size=1.4) +
+  scale_color_manual(values = colorPalette, name = "Gruppe", labels=c('Tradisjonell\nmetode', 'Ny\nmetode')) +
+  theme_sim
+
+```
+
+## Analyse av den simulerte dataen
+
+Nå som vi har generert et eksempel på et datasett, er neste steg å bygge en statistisk modell som kan beskrive dataene. Vi velger en ANCOVA-modell, der 1RM etter treningsperioden forklares av både startnivå (baseline) og hvilken treningsgruppe deltakerne tilhører. Ved å inkludere baseline i modellen tar vi hensyn til at deltakerne starter på ulike styrkenivåer. Samtidig gjør dette det mulig å sammenligne treningsgruppene på en måte som justerer for disse forskjellene. Effekten av treningsprogrammet kommer dermed til uttrykk som forskjellen mellom gruppene, gitt samme baseline-nivå. Formelt kan modellen skrives som:
+
+Nå som vi har generert et eksempel på et datasett, er neste steg å bygge en statistisk modell som kan beskrive dataene. Vi velger en ANCOVA-modell, der 1RM etter treningsperioden forklares av både startnivå (baseline) og hvilken treningsgruppe deltakerne tilhører.
+
+Ved å inkludere baseline i modellen tar vi hensyn til at deltakerne starter på ulike styrkenivåer. Samtidig gjør dette det mulig å sammenligne treningsgruppene på en måte som justerer for disse forskjellene. Effekten av treningsprogrammet kommer dermed til uttrykk som forskjellen mellom gruppene, gitt samme baseline-nivå. Modellen vi kan
+
+$$
+\text{Post}_i = \beta_0 + \beta_1 \text{Baseline}_i + \beta_2 \text{Gruppe}_i + \varepsilon_i
+$$ der $\text{Post}_i$ er 1RM i benkpress etter treningsperioden, $\text{Baseline}_i$ er 1RM ved baseline, $\text{Gruppe}_i$ angir hvilken treningsgruppe deltakeren tilhører, og $\varepsilon_i$ er et tilfeldig feilledd.
+
+Koeffisienten $\beta_2$ er den vi er interessert i. Den representerer den baseline-justerte gjennomsnittlige forskjellen mellom gruppene. Modellen forutsetter samtidig at gruppene i utgangspunktet ikke systematisk skiller seg fra hverandre ved baseline, altså at eventuelle forskjeller ved start er tilfeldige og skyldes variasjon fra utvalg til utvalg. Jeg går ikke nærmere inn på matematikken bak ANCOVA her. Det har jeg lyst til å gjøre i et eget blogginnlegg.
+
+Vi tilpasser modellen til det simulerte datasettet med følgende kode i R:
+
+```{r}
+
+mod_a <- lm(post ~ 1 + baseline + group, data = d)
+summary(mod_a) # For å vise summary
+
+```
+
+I dette ene simulerte eksempelet estimerer modellen at den nye treningsmetoden i gjennomsnitt er `r abs(round(coef(mod_a)[3], 0))` kg `r if_else(round(coef(mod_a)[3], 0) > 0, "bedre", "dårligere")` enn den tradisjonelle styrketreningsmetoden, når vi kontrollerer for baseline. Vi ser også at vi har fått en p-verdi på `r broom::tidy(mod_a) |> dplyr::filter(term == "groupb") |> dplyr::pull(p.value) |> round(3)`. Det er imidlertid viktig å understreke at dette resultatet kun kommer fra én enkelt simulert studie. Verdien i seg selv er derfor ikke særlig interessant. Det avgjørende spørsmålet er hva som skjer når vi gjentar den samme analysen mange ganger under de samme forutsetningene. Det er nettopp dette vi nå skal undersøke.
+
+## Estimere statistisk styrke
+
+Det neste steget er å undersøke den statistiske styrken til studien. Til dette bruker vi en Monte Carlo-simulering. Spørsmålet vi stiller oss er: Dersom den sanne effekten av det nye styrketreningsprogrammet faktisk er 5 kg i populasjonen (som vi har bestemt at den skal være), hvor ofte vil en studie med dette oppsettet klare å påvise den? Vi kan ikke gjennomføre det samme eksperimentet mange ganger i virkeligheten. I stedet kan vi gjøre det i en datamaskin ved å simulere studien gjentatte ganger. I en Monte Carlo-simulering gjør vi tre ting:
+
+1.  Vi spesifiserer hvordan dataene genereres, gitt våre antakelser (se tabell over)
+
+2.  Vi analyserer hvert datasett med den samme statistiske modellen.
+
+3.  Vi registrerer om analysen påviser effekten eller ikke.
+
+Ved å gjenta denne prosessen mange ganger kan vi telle hvor ofte vi påviser effekten (hit), og hvor ofte vi ikke gjør det (miss). Andelen treff gir oss et direkte mål på den statistiske styrken.
+
+For å gjøre dette i praksis lager vi først en funksjon, kalt sim(), som gjennomfører én full simulering av studien: den genererer data, tilpasser ANCOVA-modellen og returnerer resultatet. Funksjonen tar antall deltakere per gruppe, n, som argument. På denne måten kan vi senere undersøke hvordan utvalgsstørrelsen påvirker sannsynligheten for å påvise en effekt.
+
+```{r}
+
+sim <- function(n=10) {
+  n <- n # 10 deltakere per gruppe
+  rho <- 0.6 # Korrelasjonen mellom baseline og post. Høyere korrelasjon gjør at pre håndterer mer variasjon
+  sigma_pre <- 10 # SD for baseline
+  sigma_post <- 10 # SD for post
+  group_difference <- 5 # gruppeforskjellen, som i en Ancova blir intercept-forskjellen
+  
+  
+  # Jeg lager gruppene a og b, hvor a skal bli tradisjonell gruppe og b skal bli den nye styrketreningsgruppen
+  group <- rep(c("a", "b"), each = n)
+  
+  # Jeg simulerer fra en multivariate normal med 70 som gjennomsnitt for begge gruppene på baseline
+  y <- MASS::mvrnorm(
+    n = n*2,
+    mu = c(70, 70), # I ANCOVA er forventningen at baseline-forskjellen null 
+    Sigma = matrix(
+      c(sigma_pre^2,
+        rho*sigma_pre*sigma_post,
+        rho*sigma_pre*sigma_post,
+        sigma_post^2),
+      nrow = 2)
+  )
+  
+  d <- tibble(
+    group = as_factor(group),
+    baseline =  round(y[,1],0),
+    post = round(y[,2] + 10 + ifelse(group == "b", group_difference, 0),0)
+  )
+  
+  model <- lm(post ~ 1 + baseline + group, data = d)
+  
+  broom.mixed::tidy(model)
+  
+}
+
+```
+
+Vi kan nå bruke denne funksjonen til å simulere studien mange ganger. Som et første eksempel genererer vi 1000 simulerte studier med 10 deltakere per gruppe.
+
+```{r}
+#| cache: true
+sim_10 <- purrr::map_df(1:1e3, ~sim(n=10))
+```
+
+Dette gir oss 1000 simulerte studier. For hver simulering tilpasses den samme statistiske modellen (ANCOVA), og vi får et estimat for gruppeforskjellen samt en tilhørende p-verdi. Tabellen under viser 10 slike resultater som illustrasjon.
+
+```{r}
+#| echo: false
+sim_10_f <- filter(sim_10, term == "groupb")
+knitr::kable(head(sim_10_f, 10))
+```
+
+Med disse resultatene kan vi telle hvor ofte vi treffer (hit) og hvor ofte vi bommer (miss). For å gjøre dette må vi først fastsette et beslutningskriterium – altså når vi skal si at analysen har påvist en effekt. Dette kriteriet er p-verdien, og i forskning brukes det vanligvis en terskel på α=0,05. Dersom p-verdien er lavere enn 0,05, regner vi det som at testen har påvist en effekt. Hvis p-verdien er høyere enn 0,05, har testen ikke påvist effekten. På denne måten kan vi telle hvor mange ganger analysen lykkes i å påvise effekten (hit), og hvor mange ganger den ikke gjør det (miss). Følgende kode i R implementerer denne inndelingen:
+
+```{r}
+alpha <- 0.05
+
+sim_10_f <- mutate(sim_10_f, detect = if_else(p.value < alpha, "hit", "miss"))
+
+
+```
+
+Tabellen under viser de 10 første resultatene fra simuleringen, kun som illustrasjon. Hver rad tilsvarer én simulert studie, der vi har estimert gruppeforskjellen og avgjort om testen påviser effekten (hit) eller ikke (miss), gitt beslutningskriteriet𝛼= 0,05.
+
+```{r}
+#| echo: false
+#| label: tab-hit-miss-eksempel
+#| tbl-cap: Eksempel på 10 simulerte studier og deres utfall
+
+knitr::kable(head(sim_10_f, 10))
+
+```
+
+Vi kan nå beregne andelen ganger analysen fører til en korrekt beslutning, altså hvor ofte testen faktisk påviser effekten når den finnes. Dette gir oss et direkte mål på den statistiske styrken til studien. Figuren under viser utfallet av 1000 simulerte studier med 10 deltakere per gruppe. Hver simulering klassifiseres enten som hit (effekten påvises) eller miss (effekten påvises ikke), gitt beslutningskriteriet α=0,005.
+
+```{r}
+#| label: fig-hit-miss-n10
+#| fig-cap: "Andel studier der effekten påvises (hit) og ikke påvises (miss), basert på 1000 simulerte studier med 10 deltakere per gruppe"
+
+trials <- 1e3 # 1000 simuleringer
+
+sim_10_f_count <- sim_10_f |>
+  group_by(detect) |>
+  summarise(prop = (n() / trials )) |>
+  ungroup()
+
+
+ggplot(sim_10_f_count, aes(x=detect, y=prop, fill=detect)) +
+  geom_col() +
+  scale_fill_manual(values = colorPalette, name = "Utfall av testen", labels=c('Hit', 'Miss')) +
+   scale_x_discrete(labels = c(hit = "Hit", miss = "Miss")) +
+  scale_y_continuous(limits=c(0, 1), expand = expansion(mult = c(0, 0))) +
+  labs(x="Utfall av testen", y= "Andel detekterte effekter") +
+  theme_sim
+
+```
+
+Dette er ikke spesielt lovende. Figuren viser at analysen bare klarer å påvise effekten i omtrent `r round(sim_10_f_count |> dplyr::filter(detect == "hit") |> dplyr::pull(prop) * 100, 1)` % av tilfellene, selv om vi vet at effekten faktisk eksisterer. Med andre ord: I flertallet av studiene vil vi ikke klare å oppdage en reell effekt med dette studieoppsettet. Dette er særlig problematisk når vi vet at mange studier i idrettsforskning har rundt 10 deltakere per gruppe. Med så små utvalg er sannsynligheten for å påvise en realistisk og interessant effekt svært lav.
+
+For å undersøke hvordan dette bildet endrer seg med større utvalg, gjentar vi nå den samme prosessen med flere deltakere per gruppe. Vi sammenstiller resultatene for ulike utvalgsstørrelser i én og samme figur, slik at vi kan se hvordan sannsynligheten for å påvise effekten avhenger av antall deltakere.
+
+```{r}
+#| cache: true
+num_sim <- 5:1e2
+sim_all <- purrr::map_df(num_sim, function(n) {
+  purrr::map_df(1:1e3, function(i) {
+    sim(n = n)
+  }) |>
+    mutate(n = n)
+})
+
+```
+
+Figuren under viser resultatet av Monte Carlo-simuleringen for ulike utvalgsstørrelser. For hvert antall deltakere per gruppe er studien simulert 1000 ganger, og hver simulering klassifiseres som enten hit (effekten påvises) eller miss (effekten påvises ikke), gitt beslutningskriteriet𝛼= 0,05. Andelen hit for en gitt utvalgsstørrelse kan tolkes direkte som den estimerte statistiske styrken til studien.
+
+```{r}
+#| label: fig-hit-miss_power
+#| echo: false
+#| fig-cap: "Statistisk styrke (andel studier der effekten påvises) som funksjon av antall deltakere per gruppe, basert på 1000 simulerte studier per utvalgsstørrelse"
+
+
+sim_all_f <- filter(sim_all, term == "groupb")
+sim_all_f <- mutate(sim_all_f, detect = if_else(p.value < alpha, "hit", "miss"))
+
+sim_all_f_count <- sim_all_f |>
+  group_by(n, detect) |>
+  summarise(prop = (n() / trials )) |>
+  ungroup()
+
+sim_plot <- sim_all_f_count
+
+sim_plot$detect <- factor(sim_plot$detect,
+                           levels = c("miss", "hit"))
+
+
+
+ggplot(sim_plot, aes(x = factor(n), y = prop, fill = detect)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(
+    values = colorPalette,
+    name = "Utfall av testen",
+    labels = c(hit = "Hit", miss = "Miss")
+  ) +
+  scale_x_discrete(breaks = as.character(seq(10, 100, 10))) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    expand = expansion(mult = c(0, 0))
+  ) +
+  labs(
+    x = "Antall deltakere per gruppe",
+    y = "Andel detekterte effekter"
+  ) +
+  theme_sim
+
+```
+
+I figuren over ser vi tydelig at med et lavt antall deltakere per gruppe er det nærmest umulig å trekke riktige slutninger om den sanne effekten i populasjonen. Dette gjelder selv for en effekt som er både realistisk og som åpenbart burde være av interesse for forskere. Når vi samtidig vet at studier i idrettsforskning ofte har mellom 10 og 20 deltakere per gruppe, bør vi være svært forsiktige med å trekke skråsikre konklusjoner, særlig når resultatet er at man ikke klarer å påvise en effekt. Figuren over illustrerer tydelig forskjellen mellom at en effekt faktisk eksisterer, og at vi har tilstrekkelig statistisk styrke til å oppdage den. Dette skillet overses altfor ofte. En effekt kan være både reell og praktisk viktig, men likevel forbli uoppdaget dersom utvalget er for lite. Først når utvalgsstørrelsen nærmer seg rundt 50 deltakere per gruppe, begynner sannsynligheten for å påvise en slik effekt å nærme seg nivåer som vanligvis regnes som akseptable i forskning. Dette er langt høyere enn det som er vanlig praksis i feltet, og det setter store deler av litteraturen i et ubehagelig lys.
+
+Når det er sagt er ikke små studier verdiløse. Men de kan ikke brukes til å avkrefte effekter de aldri hadde en reell sjanse til å oppdage. Uten en eksplisitt definisjon av hvilken effekt man faktisk er interessert i, og uten et studiedesign som gir rimelig sannsynlighet for å påvise den, er «ingen effekt» ikke en konklusjon, det er en logisk feilslutning.
+
+Altfor ofte betyr «ingen effekt» bare én ting: Vi hadde ikke nok data.

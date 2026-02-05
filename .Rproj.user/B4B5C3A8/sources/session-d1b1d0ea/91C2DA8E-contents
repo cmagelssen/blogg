@@ -1,0 +1,17 @@
+---
+title: "Om meg"
+about:
+  template: jolla
+  links:
+    - icon: twitter
+      text: Twitter
+      href: https://twitter.com
+    - icon: linkedin
+      text: LinkedIn
+      href: https://linkedin.com
+    - icon: github
+      text: Github
+      href: https://github.com
+---
+
+Jeg heter Christian Magelssen og har doktorgrad i idrettspsykologi, mastergrad i psykologi og mastergrad i idrettspsykologi. I doktorgraden studerte jeg hvordan høy­prestasjon­sgrupper lærer og oppdaterer valg basert på erfaring (*reinforcement learning*), i samarbeid med Romy Frömer ved University of Birmingham. Jeg er interessert i eksperimentell metode og statistikk, og på denne bloggen legger jeg ut innlegg om temaer som interesserer meg.
